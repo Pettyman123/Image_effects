@@ -100,4 +100,8 @@ def create_uniform_bubble_dots(input_image_path, output_image_path, dot_spacing=
     return output_img
 
 if __name__ == "__main__":
-    create_uniform_bubble_dots("edit/3.jpg", "edit_o/output_uniform_b3.jpg", dot_spacing=6, dot_size=3)
+    # Example usage - variable dot sizes based on brightness (recommended)
+    create_bubble_dots("edit/3.jpg", "output_bubble.jpg", dot_spacing=6, max_dot_size=4)
+    
+    # Example usage - uniform dot sizes
+    create_uniform_bubble_dots("edit/3.jpg", "output_uniform_bubble.jpg", dot_spacing=6, dot_size=3)
