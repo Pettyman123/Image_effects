@@ -1,137 +1,172 @@
-# from PIL import Image, ImageDraw
-# import numpy as np
+import numpy as np
+from PIL import Image, ImageDraw
 
-# def create_bold_halftone(image_path, grid_size=10, scale=5, dot_scale=1.5, contrast=1.5):
-#     """
-#     Creates a BOLD and VIBRANT color halftone effect with large, overlapping circular dots.
-
-#     Args:
-#         image_path (str): Path to the input image.
-#         grid_size (int): The area to sample for each dot. Larger number = chunkier look.
-#         scale (int): The resolution multiplier for the output. Higher = smoother circles.
-#         dot_scale (float): The main size controller for dots. > 1.0 makes dots overlap.
-#         contrast (float): Exaggerates the size difference between light and dark dots.
+def create_perfect_dots(input_image_path, output_image_path, dot_spacing=4, dot_radius=1.8):
+    """
+    Create perfectly circular, uniform dots with precise positioning.
+    """
+    img = Image.open(input_image_path).convert('RGB')
     
-#     Returns:
-#         PIL.Image.Image: The final, high-resolution halftone image.
-#     """
-#     try:
-#         img = Image.open(image_path).convert('RGB')
-#     except FileNotFoundError:
-#         print(f"Error: The file '{image_path}' was not found.")
-#         return None
-
-#     width, height = img.size
+    # Calculate grid dimensions
+    grid_width = img.width // dot_spacing
+    grid_height = img.height // dot_spacing
+    output_width = grid_width * dot_spacing
+    output_height = grid_height * dot_spacing
     
-#     # Create the high-resolution output canvas
-#     output_width = width * scale
-#     output_height = height * scale
-#     halftone_img = Image.new('RGB', (output_width, output_height), 'white')
-#     draw = ImageDraw.Draw(halftone_img)
+    # Resize image to match grid
+    img = img.resize((grid_width, grid_height), Image.Resampling.LANCZOS)
+    img_array = np.array(img)
     
-#     pixels = np.array(img)
+    # Get background color from corners
+    corners = [
+        img_array[0, 0], 
+        img_array[0, -1], 
+        img_array[-1, 0], 
+        img_array[-1, -1]
+    ]
+    bg_color = tuple(np.mean(corners, axis=0).astype(int))
     
-#     # Define the maximum possible radius for a dot before scaling
-#     max_radius_base = (grid_size / 2) * scale
-
-#     print("Generating BOLD halftone...")
-#     for y in range(0, height, grid_size):
-#         for x in range(0, width, grid_size):
-#             cell = pixels[y:y + grid_size, x:x + grid_size]
-            
-#             if cell.size == 0:
-#                 continue
-
-#             # --- 1. VIBRANT COLOR SAMPLING ---
-#             # Reshape cell into a list of [R, G, B] pixels
-#             pixel_list = cell.reshape(-1, 3)
-            
-#             # Filter out pure blacks and pure whites to prevent them from washing out the color
-#             # This is key to preserving the vibrant colors of the jacket and tie
-#             color_pixels = pixel_list[
-#                 (np.any(pixel_list > 20, axis=1)) & (np.any(pixel_list < 235, axis=1))
-#             ]
-            
-#             if len(color_pixels) == 0:
-#                 # If the patch is pure black or white, use the average of the whole patch
-#                 sample_color = np.mean(pixel_list, axis=0)
-#             else:
-#                 # For colored areas, find the median of the TRUE colors
-#                 sample_color = np.median(color_pixels, axis=0)
-            
-#             r, g, b = sample_color.astype(int)
-#             dot_color = (r, g, b)
-            
-#             # --- 2. BOLD DOT SIZING ---
-#             # Calculate brightness from the sampled color
-#             brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
-            
-#             # Apply contrast. A higher contrast makes light areas lighter and dark areas darker.
-#             # This makes the size difference between dots much more dramatic.
-#             adjusted_brightness = brightness ** contrast
-            
-#             # The final radius is controlled by the adjusted brightness AND the dot_scale
-#             radius = (1.0 - adjusted_brightness) * max_radius_base * dot_scale
-
-#             if radius < 1:
-#                 continue # Don't draw dots that are too small to see
-
-#             center_x = (x + grid_size / 2) * scale
-#             center_y = (y + grid_size / 2) * scale
-            
-#             box = [
-#                 center_x - radius, 
-#                 center_y - radius, 
-#                 center_x + radius, 
-#                 center_y + radius
-#             ]
-#             draw.ellipse(box, fill=dot_color)
-
-#     print("Process complete.")
-#     return halftone_img
-
-# if __name__ == '__main__':
-#     # --- Configuration ---
-#     input_image_path = 'edit/3.jpg' 
+    # Create output image
+    output_img = Image.new('RGB', (output_width, output_height), bg_color)
+    draw = ImageDraw.Draw(output_img)
     
-#     # --- PLAY WITH THESE VALUES TO GET THE PERFECT LOOK! ---
-
-#     # 1. Grid Size: How "chunky" the effect is. Larger numbers mean fewer, bigger dots.
-#     #    A value around 10-12 will give a nice, bold pattern.
-#     sampling_grid_size = 9
+    # Process each pixel
+    for y in range(grid_height):
+        for x in range(grid_width):
+            r, g, b = img_array[y, x]
+            dot_color = (int(r), int(g), int(b))
+            
+            # Calculate center position
+            center_x = x * dot_spacing + dot_spacing // 2
+            center_y = y * dot_spacing + dot_spacing // 2
+            
+            # Create perfect circle
+            draw.ellipse([
+                center_x - dot_radius,
+                center_y - dot_radius,
+                center_x + dot_radius,
+                center_y + dot_radius
+            ], fill=dot_color)
     
-#     # 2. Output Resolution: Keeps circles smooth. 5 is a good balance.
-#     output_resolution = 10
+    output_img.save(output_image_path, quality=95)
+    return output_img
 
-#     # 3. DOT SCALE (MAKE THEM BIG): This is the most important setting for you.
-#     #    1.0 = dots will just touch in black areas.
-#     #    1.5 = dots are 50% bigger and will overlap significantly.
-#     #    2.0 = very large, overlapping dots.
-#     #    Let's start with a bold 1.6!
-#     dot_size_multiplier = 1.1
-
-#     # 4. Contrast: Makes the effect "pop".
-#     #    1.0 = normal.
-#     #    1.5 or 2.0 = punchy and graphic.
-#     image_contrast = 5
+def create_variable_dots(input_image_path, output_image_path, dot_spacing=4, min_radius=1.0, max_radius=2.5):
+    """
+    Create dots with variable sizes based on contrast from background.
+    """
+    img = Image.open(input_image_path).convert('RGB')
     
-#     # --- Execution ---
-#     halftone_result = create_bold_halftone(
-#         input_image_path,
-#         grid_size=sampling_grid_size,
-#         scale=output_resolution,
-#         dot_scale=dot_size_multiplier,
-#         contrast=image_contrast
-#     )
+    # Calculate grid dimensions
+    grid_width = img.width // dot_spacing
+    grid_height = img.height // dot_spacing
+    output_width = grid_width * dot_spacing
+    output_height = grid_height * dot_spacing
     
-#     if halftone_result:
-#         output_image_path = 'halftone_output_BOLD.png'
-#         halftone_result.save(output_image_path)
-#         print(f"Bold halftone image saved as '{output_image_path}'")
-        
-#         try:
-#             halftone_result.show()
-#         except Exception as e:
-#             print(f"Could not display the image automatically: {e}")
+    # Resize image to match grid
+    img = img.resize((grid_width, grid_height), Image.Resampling.LANCZOS)
+    img_array = np.array(img)
+    
+    # Get background color
+    corners = [
+        img_array[0, 0], 
+        img_array[0, -1], 
+        img_array[-1, 0], 
+        img_array[-1, -1]
+    ]
+    bg_color = tuple(np.mean(corners, axis=0).astype(int))
+    
+    # Create output image
+    output_img = Image.new('RGB', (output_width, output_height), bg_color)
+    draw = ImageDraw.Draw(output_img)
+    
+    # Process each pixel
+    for y in range(grid_height):
+        for x in range(grid_width):
+            r, g, b = img_array[y, x]
+            dot_color = (int(r), int(g), int(b))
+            
+            # Calculate color difference from background
+            color_diff = np.sqrt((r - bg_color[0])**2 + (g - bg_color[1])**2 + (b - bg_color[2])**2)
+            
+            # Variable dot size based on contrast
+            size_factor = min(color_diff / 100.0, 1.0)
+            dot_radius = min_radius + (max_radius - min_radius) * size_factor
+            
+            # Only draw significant dots
+            if color_diff > 10:
+                center_x = x * dot_spacing + dot_spacing // 2
+                center_y = y * dot_spacing + dot_spacing // 2
+                
+                draw.ellipse([
+                    center_x - dot_radius,
+                    center_y - dot_radius,
+                    center_x + dot_radius,
+                    center_y + dot_radius
+                ], fill=dot_color)
+    
+    output_img.save(output_image_path, quality=95)
+    return output_img
 
+def create_dense_dots(input_image_path, output_image_path, dot_spacing=3, dot_radius=1.5):
+    """
+    Create dense, uniform dots for maximum detail.
+    """
+    img = Image.open(input_image_path).convert('RGB')
+    
+    # Calculate grid dimensions
+    grid_width = img.width // dot_spacing
+    grid_height = img.height // dot_spacing
+    output_width = grid_width * dot_spacing
+    output_height = grid_height * dot_spacing
+    
+    # Resize image to match grid
+    img = img.resize((grid_width, grid_height), Image.Resampling.LANCZOS)
+    img_array = np.array(img)
+    
+    # Get background color from edges
+    top_row = img_array[0, :]
+    bottom_row = img_array[-1, :]
+    left_col = img_array[:, 0]
+    right_col = img_array[:, -1]
+    
+    edge_pixels = np.vstack([top_row, bottom_row, left_col, right_col])
+    bg_color = tuple(np.median(edge_pixels, axis=0).astype(int))
+    
+    # Create output image
+    output_img = Image.new('RGB', (output_width, output_height), bg_color)
+    draw = ImageDraw.Draw(output_img)
+    
+    # Process each pixel
+    for y in range(grid_height):
+        for x in range(grid_width):
+            r, g, b = img_array[y, x]
+            dot_color = (int(r), int(g), int(b))
+            
+            center_x = x * dot_spacing + dot_spacing // 2
+            center_y = y * dot_spacing + dot_spacing // 2
+            
+            draw.ellipse([
+                center_x - dot_radius,
+                center_y - dot_radius,
+                center_x + dot_radius,
+                center_y + dot_radius
+            ], fill=dot_color)
+    
+    output_img.save(output_image_path, quality=95)
+    return output_img
 
+if __name__ == "__main__":
+    # Perfect uniform circles
+    # create_perfect_dots("edit/6.jpg", "output_perfect.jpg", 
+    #                    dot_spacing=9, dot_radius=5)
+    
+    # Variable sized dots
+    # create_variable_dots("edit/3.jpg", "output_variable.jpg", 
+    #                     dot_spacing=4, min_radius=1.0, max_radius=2.5)
+    
+    # # Dense dots for detail
+    # create_dense_dots("edit/3.jpg", "output_dense.jpg", 
+    #                  dot_spacing=3, dot_radius=1.5)
+    create_perfect_dots("edit/11.jpg", "output_perfect.jpg", 
+                       dot_spacing=9, dot_radius=5)
