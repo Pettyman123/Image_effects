@@ -1,107 +1,49 @@
 import numpy as np
 from PIL import Image, ImageDraw
 
-def create_bubble_dots(input_image_path, output_image_path, dot_spacing=6, max_dot_size=4):
+def comic_ben_day_dots(input_image_path, output_image_path, dot_spacing=8, dot_scale=0.9, sample="center"):
     """
-    Convert image to circular dots while preserving original colors.
-    Creates a bubbly effect without any color enhancement.
-    """
-    img = Image.open(input_image_path).convert('RGB')
-    
-    # Calculate grid dimensions
-    grid_width = img.width // dot_spacing
-    grid_height = img.height // dot_spacing
-    output_width = grid_width * dot_spacing
-    output_height = grid_height * dot_spacing
-    
-    # Resize image to match grid
-    img = img.resize((grid_width, grid_height), Image.Resampling.LANCZOS)
-    
-    # Create output image with white background
-    output_img = Image.new('RGB', (output_width, output_height), (255, 255, 255))
-    draw = ImageDraw.Draw(output_img)
-    
-    # Convert to numpy array for easier pixel access
-    img_array = np.array(img)
-    
-    # Process each pixel
-    for y in range(grid_height):
-        for x in range(grid_width):
-            # Get original pixel color (no modification)
-            r, g, b = img_array[y, x]
-            dot_color = (int(r), int(g), int(b))
-            
-            # Calculate dot size based on brightness (darker = larger dots)
-            brightness = (r * 0.299 + g * 0.587 + b * 0.114) / 255.0
-            dot_size = (1 - brightness) * max_dot_size
-            
-            # Only draw dots that are visible
-            if dot_size > 0.5:
-                center_x = x * dot_spacing + dot_spacing // 2
-                center_y = y * dot_spacing + dot_spacing // 2
-                
-                # Draw circular dot
-                bbox = [
-                    center_x - dot_size,
-                    center_y - dot_size,
-                    center_x + dot_size,
-                    center_y + dot_size
-                ]
-                draw.ellipse(bbox, fill=dot_color)
-    
-    # Save the result
-    output_img.save(output_image_path, quality=95)
-    return output_img
+    Create a comic-style Ben-Day halftone with clean circular colored dots.
 
-def create_uniform_bubble_dots(input_image_path, output_image_path, dot_spacing=6, dot_size=3):
-    """
-    Create uniform-sized circular dots for every pixel.
-    All dots are the same size, only colors vary.
+    Parameters:
+      dot_spacing - distance between dot centers (larger = fewer, bigger dots)
+      dot_scale   - 0..1, fraction of cell size that dot should fill
+      sample      - 'center' or 'mean': how to choose the cell's color
     """
     img = Image.open(input_image_path).convert('RGB')
+    width, height = img.size
     
-    # Calculate grid dimensions
-    grid_width = img.width // dot_spacing
-    grid_height = img.height // dot_spacing
-    output_width = grid_width * dot_spacing
-    output_height = grid_height * dot_spacing
-    
-    # Resize image to match grid
-    img = img.resize((grid_width, grid_height), Image.Resampling.LANCZOS)
-    
-    # Create output image with white background
-    output_img = Image.new('RGB', (output_width, output_height), (255, 255, 255))
+    # Output canvas, same size as input
+    output_img = Image.new('RGB', (width, height), (255, 255, 255))
     draw = ImageDraw.Draw(output_img)
     
-    # Convert to numpy array
     img_array = np.array(img)
     
-    # Process each pixel
-    for y in range(grid_height):
-        for x in range(grid_width):
-            # Get original pixel color (no modification)
-            r, g, b = img_array[y, x]
+    for y in range(0, height, dot_spacing):
+        for x in range(0, width, dot_spacing):
+            x2 = min(x + dot_spacing, width)
+            y2 = min(y + dot_spacing, height)
+            
+            if sample == "mean":
+                block = img_array[y:y2, x:x2]
+                r, g, b = np.mean(block.reshape(-1, 3), axis=0)
+            else:  # center
+                cx = x + (x2 - x)//2
+                cy = y + (y2 - y)//2
+                r, g, b = img_array[cy, cx]
+            
             dot_color = (int(r), int(g), int(b))
             
-            center_x = x * dot_spacing + dot_spacing // 2
-            center_y = y * dot_spacing + dot_spacing // 2
+            # Dot radius (fills most of cell)
+            radius = dot_spacing * dot_scale / 2
+            cx = x + dot_spacing // 2
+            cy = y + dot_spacing // 2
             
-            # Draw uniform circular dot
-            bbox = [
-                center_x - dot_size,
-                center_y - dot_size,
-                center_x + dot_size,
-                center_y + dot_size
-            ]
+            bbox = [cx - radius, cy - radius, cx + radius, cy + radius]
             draw.ellipse(bbox, fill=dot_color)
     
-    # Save the result
     output_img.save(output_image_path, quality=95)
     return output_img
 
-if __name__ == "__main__":
-    # Example usage - variable dot sizes based on brightness (recommended)
-    create_bubble_dots("edit/3.jpg", "output_bubble.jpg", dot_spacing=6, max_dot_size=4)
-    
-    # Example usage - uniform dot sizes
-    create_uniform_bubble_dots("edit/3.jpg", "output_uniform_bubble.jpg", dot_spacing=6, dot_size=3)
+# Example usage
+comic_ben_day_dots("edit/6.jpg", "comic_.jpg", dot_spacing=8, dot_scale=0.95, sample="center")
